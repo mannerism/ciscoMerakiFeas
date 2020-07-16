@@ -33,10 +33,10 @@ class MainViewController:UIViewController {
 		return button
 	}()
 	
-	var uuidString = "6d406fed-5aed-4bc5-a4fe-e5d19682ed0c"
+	var uuidList:[UUID] = [UUID(uuidString: "6d406fed-5aed-4bc5-a4fe-e5d19682ed0c")!, UUID(uuidString: "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0")!]
 	var locationManager = CLLocationManager()
 	var beaconConstraints = [CLBeaconIdentityConstraint: [CLBeacon]]()
-	var beacons = [CLBeacon]()
+	var beacons = [UUID:[CLBeacon]]()
 	
 	// MARK: - Init
 	override func viewDidLoad() {
@@ -55,11 +55,18 @@ class MainViewController:UIViewController {
 	// MARK: - Handlers
 	func startMonitoring() {
 		locationManager.requestAlwaysAuthorization()
-		guard let uuid = UUID(uuidString: uuidString) else {return}
-		let constraint = CLBeaconIdentityConstraint(uuid: uuid)
-		self.beaconConstraints[constraint] = []
-		let beaconRegion = CLBeaconRegion(beaconIdentityConstraint: constraint, identifier: uuid.uuidString)
-		locationManager.startMonitoring(for: beaconRegion)
+		var beaconRegions:[CLBeaconRegion] = []
+		let constraints:[CLBeaconIdentityConstraint] = [
+			CLBeaconIdentityConstraint(uuid: uuidList[0]),
+			CLBeaconIdentityConstraint(uuid: uuidList[1])
+		]
+		constraints.forEach {
+			self.beaconConstraints[$0] = []
+			beaconRegions.append(CLBeaconRegion(beaconIdentityConstraint: $0, identifier: $0.uuid.uuidString))
+		}
+		beaconRegions.forEach {
+			locationManager.startMonitoring(for: $0)
+		}
 	}
 	
 	func stopMonitoring() {
@@ -110,12 +117,6 @@ class MainViewController:UIViewController {
 		tableView.register(TableViewCell.self, forCellReuseIdentifier: tableViewCellID)
 	}
 	
-	func getBeaconConstraints() -> CLBeaconIdentityConstraint{
-		let uuid = UUID(uuidString: uuidString)!
-		let constraint = CLBeaconIdentityConstraint(uuid: uuid)
-		return constraint
-	}
-	
 	@objc func handleFindButton() {
 		startMonitoring()
 	}
@@ -151,6 +152,10 @@ class MainViewController:UIViewController {
 }
 
 extension MainViewController: CLLocationManagerDelegate {
+	func locationManager(_ manager: CLLocationManager, didStartMonitoringFor region: CLRegion) {
+		print(region.debugDescription)
+	}
+	
 	func locationManager(_ manager: CLLocationManager, didRange beacons: [CLBeacon], satisfying beaconConstraint: CLBeaconIdentityConstraint) {
 		/*
 		Beacons are categorized by proximity. A beacon can satisfy
@@ -166,10 +171,10 @@ extension MainViewController: CLLocationManagerDelegate {
 			allBeacons.append(contentsOf: regionResult)
 		}
 		
-		for range in [CLProximity.unknown, .immediate, .near, .far] {
-			let proximityBeacons = allBeacons.filter { $0.proximity == range }
+		for uuid in uuidList {
+			let proximityBeacons = allBeacons.filter { $0.uuid == uuid }
 			if !proximityBeacons.isEmpty {
-				self.beacons = proximityBeacons
+				self.beacons[uuid] = proximityBeacons
 			}
 		}
 		print(beacons)
@@ -186,6 +191,10 @@ extension MainViewController: CLLocationManagerDelegate {
 			// Stop ranging when not inside a region.
 			manager.stopRangingBeacons(satisfying: beaconRegion!.beaconIdentityConstraint)
 		}
+	}
+	
+	func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+		manager.stopMonitoring(for: region)
 	}
 	
 	func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -208,13 +217,25 @@ extension MainViewController: CLLocationManagerDelegate {
 
 
 extension MainViewController: UITableViewDelegate, UITableViewDataSource {
+	func numberOfSections(in tableView: UITableView) -> Int {
+		beacons.count
+	}
+	
+	func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+		let sectionKeys = Array(beacons.keys)
+		let sectionKey = sectionKeys[section]
+		return sectionKey.uuidString
+	}
+	
 	func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-		return beacons.count
+		
+		return Array(beacons.values)[section].count
 	}
 	
 	func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 		let cell = tableView.dequeueReusableCell(withIdentifier: tableViewCellID, for: indexPath) as! TableViewCell
-		let beacon = beacons[indexPath.row]
+		let sectionKey = Array(beacons.keys)[indexPath.section]
+		let beacon = beacons[sectionKey]![indexPath.row]
 		cell.buildingLabel.text = beacon.uuid.uuidString
 		cell.classLabel.text = "class number: \(beacon.minor)"
 		cell.distanceLabel.text = "distance: \(beacon.accuracy)"
