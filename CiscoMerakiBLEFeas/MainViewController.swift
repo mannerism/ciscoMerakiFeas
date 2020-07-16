@@ -224,7 +224,14 @@ extension MainViewController: UITableViewDelegate, UITableViewDataSource {
 	func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
 		let sectionKeys = Array(beacons.keys)
 		let sectionKey = sectionKeys[section]
-		return sectionKey.uuidString
+		switch sectionKey.uuidString{
+		case "6D406FED-5AED-4BC5-A4FE-E5D19682ED0C":
+			return "Meraki AP"
+		case "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0":
+			return "IPHONE"
+		default:
+			return "none"
+		}
 	}
 	
 	func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
